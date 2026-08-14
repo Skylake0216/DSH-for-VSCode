@@ -1,0 +1,196 @@
+{
+  "name": "dsh-for-vscode",
+  "displayName": "DSH for VSCode",
+  "description": "DeepSeek Harness 嵌入 VSCode：完整 Web GUI（全部 DSH 插件兼容）+ 原生编辑器文件联动，与浏览器 WebUI 共享同一实例。",
+  "version": "0.1.0",
+  "publisher": "dsh-vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "harness",
+    "agent"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:dsh-vscode.open",
+    "onCommand:dsh-vscode.openInBrowser",
+    "onCommand:dsh-vscode.restartHost",
+    "onCommand:dsh-vscode.stopHost",
+    "onCommand:dsh-vscode.exportBridgeOverlay",
+    "onWebviewPanel:dshVscode.chat"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "dsh-vscode.open",
+        "title": "DSH: 打开 DSH 面板",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh-vscode.openInBrowser",
+        "title": "DSH: 在浏览器中打开共享实例",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh-vscode.restartHost",
+        "title": "DSH: 重启 Host",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh-vscode.stopHost",
+        "title": "DSH: 停止 Host",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh-vscode.exportBridgeOverlay",
+        "title": "DSH: 导出桥接叠加层（供手动托管共享实例）",
+        "category": "DSH"
+      }
+    ],
+    "configuration": {
+      "title": "DSH for VSCode",
+      "properties": {
+        "dshVscode.executablePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "dsh 可执行文件路径（可执行文件或 `lib/bin.js`）。留空时按序自动查找：npx 缓存 / 全局 npm 中的 `@deepseek-ai/dsh`、PATH 中的 `dsh`。"
+        },
+        "dshVscode.profileName": {
+          "type": "string",
+          "default": "web",
+          "description": "要启动的 DSH profile 名称（默认 web，即 dsh web）。"
+        },
+        "dshVscode.hostMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "spawn",
+            "connect"
+          ],
+          "default": "auto",
+          "markdownDescription": "`auto`：若 `connectUrl` 已有可用的 DSH 实例则连接之（共享实例）；否则仅当 `dshVscode.autoModeSpawn` 开启时由插件托管启动（默认关闭，无实例时提示错误）。`spawn`：总是由插件托管（若检测到已有 DSH 实例在运行则默认拒绝，见 `dshVscode.allowDualInstance`）。`connect`：总是连接已有实例。"
+        },
+        "dshVscode.allowDualInstance": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "spawn 前检测到已有 DSH 实例在运行（`connectUrl` / 共享端口 / 本扩展上次托管的实例）时，是否允许再启动一个。两个实例共享同一 `~/.dsh` 并发写会话日志会损坏日志（`corrupt session log: seq gap`）。默认关闭（拒绝并提示）；开启自担风险。"
+        },
+        "dshVscode.stopHostOnExit": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "退出 VSCode 时自动结束由本扩展托管的 host 进程（spawn 模式，或 auto 模式下由扩展启动的实例）。关闭时保留运行，下次打开面板 reattach 同一实例。"
+        },
+        "dshVscode.stopConnectedInstanceOnExit": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "connect 模式下，退出 VSCode 时是否同时结束所连接的 DSH 实例。仅对带 `dsh-vscode-bridge` 的实例生效（经桥接 health 拿到实例 PID 后结束进程树）；无桥接的实例无法结束。默认关闭：connect 模式的实例由外部管理，退出 VSCode 不影响它。"
+        },
+        "dshVscode.autoModeSpawn": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "auto 模式下，若 3080 端口（`connectUrl`）没有 dsh web 在运行，是否唤起（由插件托管启动）dsh web。默认关闭：auto 仅连接已有实例，无实例时打开面板会提示错误而不是自动启动。"
+        },
+        "dshVscode.connectUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:3080",
+          "description": "connect 模式（或 auto 检测）使用的实例地址。"
+        },
+        "dshVscode.sharePort": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "spawn 时优先使用固定共享端口（默认 3080，被占用则随机），使浏览器 GUI 可连到同一实例。"
+        },
+        "dshVscode.autoOpenFiles": {
+          "type": "string",
+          "enum": [
+            "preview",
+            "editor",
+            "off"
+          ],
+          "default": "preview",
+          "markdownDescription": "agent 写入文件时是否自动在 VSCode 打开。`preview`=预览标签（非侵入，可被下一个覆盖）；`editor`=持久标签；`off`=不自动打开（仍可点击 UI 路径打开）。已打开且有未保存修改的文档永不自动覆盖。"
+        },
+        "dshVscode.autoOpenInclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*"
+          ],
+          "description": "自动打开的文件 glob 白名单。"
+        },
+        "dshVscode.autoOpenExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/.dsh/**",
+            "**/*.png",
+            "**/*.jpg",
+            "**/*.jpeg",
+            "**/*.gif",
+            "**/*.ico",
+            "**/*.webp",
+            "**/*.pdf",
+            "**/*.zip",
+            "**/*.exe",
+            "**/*.dll"
+          ],
+          "description": "自动打开的文件 glob 黑名单。"
+        },
+        "dshVscode.openColumn": {
+          "type": "string",
+          "enum": [
+            "beside",
+            "active"
+          ],
+          "default": "beside",
+          "description": "DSH 面板在编辑器区打开的位置。"
+        },
+        "dshVscode.hostCwd": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "host 工作目录（agent 的默认项目目录）。留空 = 当前工作区文件夹；无文件夹时用用户主目录。"
+        },
+        "dshVscode.readyTimeoutSec": {
+          "type": "number",
+          "default": 60,
+          "description": "等待 DSH host 就绪的超时（秒）。"
+        },
+        "dshVscode.debugLog": {
+          "type": "boolean",
+          "default": false,
+          "description": "把扩展自身的诊断信息输出到扩展日志控制台（host stdout/stderr 始终写入扩展日志目录 logs/ 下）。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.webview.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node tests/policy.test.js && node tests/pathSafety.test.js && node tests/bridge.test.js && node tests/messages.test.js && node tests/hostUtils.test.js && node tests/nodeWatcher.test.js && node tests/relay.test.js",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@secretlint/secretlint-rule-preset-recommend": "^10.1.2",
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.1",
+    "jsdom": "^25.0.1",
+    "typescript": "~5.7.2"
+  }
+}

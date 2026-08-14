@@ -1,0 +1,9 @@
+# 换行与文本规范化（CI 同时跑 Linux/Windows）
+* text=auto eol=lf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.vsix binary

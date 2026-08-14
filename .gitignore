@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+dist/
+.dsh-test/
+overlay.spike.yml
+overlay.e2e.yml
+*.vsix
+.tmp-tests-*
+.node-watch-*
+# 本机研究笔记（含本机绝对路径）：默认不提交；如需保留可自行删除本行
+DSH-web-profile-embedding-research.md

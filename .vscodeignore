@@ -1,0 +1,14 @@
+# 打包时排除的文件
+node_modules/**
+.npm-cache/**
+src/**
+tests/**
+bridge/src/**
+tsconfig.json
+tsconfig.webview.json
+**/*.map
+.vscode/**
+.gitignore
+package-lock.json
+DSH-web-profile-embedding-research.md
+overlay.*.yml

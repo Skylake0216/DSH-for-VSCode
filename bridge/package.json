@@ -1,0 +1,8 @@
+{
+  "name": "dsh-vscode-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "description": "DSH for VSCode bridge: /dsh-vscode routes + tapIndex bridge.js injection + systemPrompt announcement. Host-only, zero runtime dependencies."
+}
