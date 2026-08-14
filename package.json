@@ -1,7 +1,7 @@
 {
-  "name": "dsh-for-vscode",
-  "displayName": "DSH for VSCode",
-  "description": "DeepSeek Harness 嵌入 VSCode：完整 Web GUI（全部 DSH 插件兼容）+ 原生编辑器文件联动，与浏览器 WebUI 共享同一实例。",
+  "name": "embedded-deepseek-harness-for-vs-code",
+  "displayName": "Embedded Deepseek Harness for VS Code",
+  "description": "DeepSeek Harness 嵌入 VSCode：完整 Web GUI，全部 DSH 插件兼容，与浏览器 WebUI 共享同一实例。",
   "version": "0.1.2",
   "publisher": "Skylake0216",
   "license": "MIT",
