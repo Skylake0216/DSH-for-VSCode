@@ -120,8 +120,6 @@ npm run package        # 生成 dsh-for-vscode-<version>.vsix
 └─ tsconfig*.json            # host（CJS）与 webview（普通脚本）配置
 ```
 
-产物（`dist/`、`node_modules/`、`*.vsix`、`.npm-cache/`）已被 .gitignore 排除——其余全部提交。
-
 ### 已知限制
 
 - 仅桌面版 VSCode；不支持 Remote / 容器 / vscode.dev。
@@ -252,8 +250,6 @@ An **instance** is a **DSH host process**. Instance sharing means VSCode and the
 ├─ package.json              # extension manifest & scripts
 └─ tsconfig*.json            # host (CJS) and webview (plain script) configs
 ```
-
-Generated artifacts (`dist/`, `node_modules/`, `*.vsix`, `.npm-cache/`) are gitignored — commit the rest.
 
 ### Known Limitations
 
