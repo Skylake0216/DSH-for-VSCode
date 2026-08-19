@@ -28,8 +28,9 @@ export const inject = ['webServer', 'systemPrompt']
 /** 本模块所在目录（bridge.js 同目录）。 */
 const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url))
 
-/** bridge.js 页面脚本，启动时读一次（内容恒定）。 */
-const BRIDGE_JS_SOURCE = readFileSync(join(PLUGIN_DIR, 'bridge.js'), 'utf8')
+/** bridge.js 页面脚本路径；每次请求读取，便于已运行的 host 也能在文件更新后立即提供新桥接脚本。 */
+const BRIDGE_JS_PATH = join(PLUGIN_DIR, 'bridge.js')
+const readBridgeJsSource = () => readFileSync(BRIDGE_JS_PATH, 'utf8')
 
 /** 注入脚本的标记属性（幂等检查用）。 */
 const INJECT_MARKER = 'data-dsh-vscode-bridge'
@@ -96,7 +97,7 @@ export function apply(ctx, config) {
           'content-type': 'text/javascript; charset=utf-8',
           'cache-control': 'no-store',
         })
-        res.end(BRIDGE_JS_SOURCE)
+        res.end(readBridgeJsSource())
       },
     }),
 

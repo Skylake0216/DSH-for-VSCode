@@ -283,6 +283,9 @@ export class HostManager implements vscode.Disposable {
     child.once('exit', (code, signal) => {
       exited = { code, signal }
       closeLog()
+      this.options.log(
+        `child exit: code=${String(code)} signal=${String(signal)} deliberateStop=${String(this.deliberateStop)} disposed=${String(this.disposed)} isCurrent=${String(this.child === child)}`
+      )
       // 旧子进程（已被 stop/spawn 替换）的退出事件不得影响当前状态
       if (this.child !== child || this.disposed || this.deliberateStop) return
       this.setStatus('error', `dsh 进程异常退出（code=${String(code)} signal=${String(signal)}），日志：${logPath ?? '（无）'}`)
@@ -368,6 +371,11 @@ export class HostManager implements vscode.Disposable {
 
   /** 启动（或连接）DSH host。in-flight 的 start 复用同一 promise，防并发双 spawn。 */
   async start(): Promise<HostRuntime> {
+    // 幂等保护必须最先判断：否则第二次 start() 会误杀正在启动中的 child。
+    if (this.starting !== undefined) {
+      this.options.log(`start(): 已有 in-flight 启动，复用`)
+      return this.starting
+    }
     // 崩溃/失败后遗留的 runtime 不是可用实例：重置后走正常启动流程（自动恢复）。
     if (this.runtime !== undefined && this.status !== 'error') {
       this.options.log(`start(): 已就绪，直接返回 ${this.runtime.url}`)
@@ -375,9 +383,8 @@ export class HostManager implements vscode.Disposable {
     }
     if (this.status === 'error' || this.runtime === undefined) {
       this.runtime = undefined
-      if (this.child !== undefined && this.child.exitCode === null) this.cleanupChild(this.child)
+      if (this.child !== undefined && this.isChildRunning(this.child)) this.cleanupChild(this.child)
     }
-    if (this.starting !== undefined) return this.starting
     this.starting = this.doStart()
     try {
       return await this.starting
@@ -412,11 +419,11 @@ export class HostManager implements vscode.Disposable {
       }
       const reattached = await this.reattachRecord()
       if (reattached !== undefined) return reattached
-      if (this.options.getSetting('dshVscode.autoModeSpawn', false)) {
+      if (this.options.getSetting('dshVscode.autoModeSpawn', true)) {
         return await this.spawnHost()
       }
       throw new Error(
-        `connectUrl（${connectUrl}）上没有可用的 DSH 实例（auto 模式未开启自动托管启动：可设置 dshVscode.autoModeSpawn，或改用 spawn 模式）`
+        `connectUrl（${connectUrl}）上没有可用的 DSH 实例（dshVscode.autoModeSpawn 已关闭，auto 模式不会自动托管启动：可重新开启该设置，或改用 spawn 模式）`
       )
     } catch (error) {
       this.setStatus('error', error instanceof Error ? error.message : String(error))
@@ -424,10 +431,15 @@ export class HostManager implements vscode.Disposable {
     }
   }
 
+  /** 判断 child 是否仍在运行（signal 退出时 exitCode 也是 null，必须同时看 signalCode）。 */
+  private isChildRunning(child: ChildProcess): boolean {
+    return child.exitCode === null && child.signalCode === null
+  }
+
   /** 清理一个已知 child（kill + 强杀兜底 + 摘除引用）。 */
   private cleanupChild(child: ChildProcess): void {
     if (this.child === child) this.child = undefined
-    if (child.exitCode !== null) return
+    if (!this.isChildRunning(child)) return
     try {
       child.kill()
     } catch {
@@ -435,7 +447,7 @@ export class HostManager implements vscode.Disposable {
     }
     const pid = child.pid
     setTimeout(() => {
-      if (child.exitCode !== null) return
+      if (!this.isChildRunning(child)) return
       try {
         if (process.platform === 'win32' && pid !== undefined) {
           spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true })
@@ -457,7 +469,7 @@ export class HostManager implements vscode.Disposable {
     const child = this.child
     if (child === undefined) return
     this.child = undefined
-    if (child.exitCode !== null) return
+    if (!this.isChildRunning(child)) return
     this.deliberateStop = true
     const pid = child.pid
     try {
@@ -466,7 +478,7 @@ export class HostManager implements vscode.Disposable {
       /* ignore */
     }
     this.killTimer = setTimeout(() => {
-      if (child.exitCode !== null) return
+      if (!this.isChildRunning(child)) return
       try {
         if (process.platform === 'win32' && pid !== undefined) {
           spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true })

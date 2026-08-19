@@ -10,7 +10,9 @@
  *     "系统打开"默认行为——嵌入场景下这正是用户期望的。
  *  2. 通用路径文本/链接：非交互元素文本形如文件路径、或 <a href> 指向
  *     文件路径、或带 [data-path] 的元素——点击打开 VSCode。
- *  3. 不做任何 DOM 修改/样式注入，失败静默。
+ *  3. VSCode 主题同步：接收 relay 转发的 VSCode 主题颜色，映射到 DSH
+ *     `--dsw-*` token 并注入覆盖样式；只在 dshEmbed=1 时生效。
+ *  4. 不做其他 DOM 修改，失败静默。
  */
 (() => {
   'use strict'
@@ -28,6 +30,55 @@
       /* 静默 */
     }
   }
+
+  // —— VSCode 主题同步 ——
+  /** 覆盖样式节点：DSH 自身主题 presenter 用内联 token，这里用 !important 样式表压过它。 */
+  let themeStyle = null
+  /** DSH 页面加载时自身主题的初始状态；reset 时恢复，避免关闭同步后残留 VSCode 明暗。 */
+  const initialScheme = document.documentElement.style.colorScheme || ''
+  const initialDark = document.body.hasAttribute('data-ds-dark-theme')
+  const applyVscodeTheme = (data) => {
+    if (!data || typeof data !== 'object') return
+    if (data.reset === true) {
+      themeStyle?.remove()
+      themeStyle = null
+      if (initialScheme !== '') document.documentElement.style.colorScheme = initialScheme
+      else document.documentElement.style.removeProperty('color-scheme')
+      if (initialDark) document.body.toggleAttribute('data-ds-dark-theme', true)
+      else document.body.removeAttribute('data-ds-dark-theme')
+      return
+    }
+    const scheme = data.scheme === 'dark' ? 'dark' : 'light'
+    document.documentElement.style.colorScheme = scheme
+    if (scheme === 'dark') document.body.toggleAttribute('data-ds-dark-theme', true)
+    else document.body.removeAttribute('data-ds-dark-theme')
+    const tokens = data.tokens && typeof data.tokens === 'object' ? data.tokens : null
+    if (tokens === null) {
+      themeStyle?.remove()
+      themeStyle = null
+      return
+    }
+    const rules = Object.entries(tokens)
+      .filter(([name, value]) => typeof name === 'string' && name.startsWith('--') && typeof value === 'string' && value.trim() !== '')
+      .map(([name, value]) => `${name}: ${value.trim()} !important;`)
+    if (rules.length === 0) {
+      themeStyle?.remove()
+      themeStyle = null
+      return
+    }
+    if (themeStyle === null) {
+      themeStyle = document.createElement('style')
+      themeStyle.id = 'dsh-vscode-theme-overrides'
+      document.head.appendChild(themeStyle)
+    }
+    themeStyle.textContent = `body { ${rules.join(' ')} }`
+  }
+  window.addEventListener('message', (event) => {
+    if (event.source !== window.parent) return
+    const data = event.data
+    if (!data || typeof data !== 'object' || data.source !== 'dsh-vscode' || data.type !== 'theme') return
+    applyVscodeTheme(data)
+  })
 
   /** 形如文件路径的文本（相对/绝对，含分隔符与扩展名；宽泛但防误报）。 */
   const PATH_TEXT = /^\.{0,2}[/\\][^\s<>"|?*]+$/ // ./x、../x、/abs、C:\x 均含分隔符

@@ -25,6 +25,7 @@
   - agent 删除文件时自动关闭对应文件标签页（dirty 则保留）；
   - 在 agent 中切换工作区时会将标签页切换到新工作区已打开的文件。
 - **不改变profile**——插件本身只是将web ui嵌入到vscode，不修改你 profile 的 `package.json` / `cordis.patch.yml`；卸载即无痕。
+- **主题颜色同步**——面板内的 DSH 界面会把当前 VSCode 主题颜色映射到 DSH 的 `--dsw-*` token（可在`themeSync` 关闭），同时外部浏览器内不改变相应外观。**注意**，使用`connect`或`auto`到由外部程序拉起的实例时，由于无法注入`bridge.js`，无法实现主题颜色的同步，此时会通过改变 DSH settings API 以同步明/暗。
 
 ### 环境要求
 
@@ -36,9 +37,10 @@
 
 **从 VSIX 安装**
 
+克隆仓库后，运行下列代码：
 ```sh
 npm install
-npm run package        # 生成 dsh-for-vscode-<version>.vsix
+npm run package        # 生成 embedded-deepseek-harness-for-vs-code-<version>.vsix
 ```
 
 然后在 VSCode 中：扩展视图 → `...` → **从 VSIX 安装…** → 重载。
@@ -57,7 +59,7 @@ npm run package        # 生成 dsh-for-vscode-<version>.vsix
 |---|---|---|
 | `spawn` | 使用面板；浏览器打开状态栏端口，或运行 `DSH: 在浏览器中打开共享实例` |  `spawn`会尝试拉起一个DSH host 进程，同时VSCode会连接到这个进程。为防止再两个不同的实例上同时运行同一段对话导致会话日志损坏，当发现DSH默认端口已有实例运行时，默认不拉起新的实例。该行为可在设置项`allowDualInstance`修改。 |
 | `Connect` | 终端运行 `dsh web`（3080），在命令面板运行 `DSH：打开DSH面板` | `Connect`参数下扩展会尝试连接到默认端口`connectUrl`下的 DSH host 进程 |
-| `auto` | 自动连接 | connectUrl 上已有可用实例则连接，否则仅当 autoModeSpawn 开启时托管启动 |
+| `auto` | 自动连接 | connectUrl 上已有可用实例则连接，否则默认托管启动（autoModeSpawn 可关闭） |
 
 ### 命令
 
@@ -73,16 +75,17 @@ npm run package        # 生成 dsh-for-vscode-<version>.vsix
 
 | 设置 | 默认 | 说明 |
 |---|---|---|
-| `hostMode` | `auto` | `auto`：`connectUrl` 上已有可用实例则连接，否则仅当 `autoModeSpawn` 开启时托管启动。`spawn`：总是托管（检测到已有实例在跑则默认拒绝，见 `allowDualInstance`）。`connect`：总是连接。 |
+| `hostMode` | `auto` | `auto`：`connectUrl` 上已有可用实例则连接，否则默认托管启动（可通过 `autoModeSpawn` 关闭）。`spawn`：总是托管（检测到已有实例在跑则默认拒绝，见 `allowDualInstance`）。`connect`：总是连接。 |
 | `connectUrl` | `http://127.0.0.1:3080` | connect / auto 检测的实例地址（仅回环）。 |
 | `sharePort` | `true` | spawn 时优先用 3080（空闲则用），浏览器可连到同一实例。 |
-| `autoModeSpawn` | `false` | auto 模式下，若 3080（`connectUrl`）没有 dsh web 在运行，是否唤起（托管启动）dsh web。默认关闭：auto 仅连接已有实例，无实例时提示错误而不是自动启动。 |
+| `autoModeSpawn` | `true` | auto 模式下，若 3080（`connectUrl`）没有 dsh web 在运行，是否唤起（托管启动）dsh web。默认开启：auto 在无已有实例时自动托管启动；关闭后无实例时提示错误。 |
 | `allowDualInstance` | `false` | spawn 前检测到已有 DSH 实例在运行（`connectUrl` / 共享端口 / 本扩展上次托管的实例）时，是否允许再启动一个。两个实例共享同一 `~/.dsh` 并发写会话日志会损坏日志（`corrupt session log: seq gap`）。默认关闭（拒绝并提示）；开启自担风险。 |
 | `stopHostOnExit` | `true` | 退出 VSCode 时自动结束由本扩展托管的 host 进程（spawn 模式，或 auto 模式下由扩展启动的实例）。关闭时保留运行，下次打开面板 reattach 同一实例。 |
 | `stopConnectedInstanceOnExit` | `false` | connect 模式下，退出 VSCode 时是否同时结束所连接的 DSH 实例。仅对带 `dsh-vscode-bridge` 的实例生效（经桥接 health 拿 PID 后结束进程树）；无桥接的实例无法结束。默认关闭：connect 模式的实例由外部管理，退出 VSCode 不影响它。 |
 | `autoOpenFiles` | `preview` | agent 写文件时的自动打开策略：`preview`（可复用预览标签）/ `editor`（持久标签）/ `off`。 |
 | `autoOpenInclude` / `autoOpenExclude` | — | 自动打开的 glob 白名单 / 黑名单（默认排除 `node_modules`、`.git`、二进制等）。 |
 | `openColumn` | `beside` | DSH 面板打开位置（`beside` / `active`）。 |
+| `themeSync` | `true` | 面板内的 DSH 界面会把当前 VSCode 主题颜色映射到 DSH 的 `--dsw-*` token（可在`themeSync` 关闭），同时外部浏览器内不改变相应外观。**注意**，使用`connect`或`auto`到由外部程序拉起的实例时，由于无法注入`bridge.js`，无法实现主题颜色的同步，此时会通过改变 DSH settings API 以同步明/暗。|
 | `hostCwd` | （空） | host 工作目录（留空 = 当前工作区文件夹，无文件夹用主目录）。 |
 | `executablePath` | （空） | 显式 dsh 路径（可执行文件或 `lib/bin.js`）。留空 = 自动查找（npx 缓存 / 全局 npm / PATH）。 |
 | `profileName` | `web` | 启动的 profile（须为带 Web 界面的 profile）。 |
@@ -112,7 +115,7 @@ npm run package        # 生成 dsh-for-vscode-<version>.vsix
 │  └─ lib/
 │     ├─ index.js            # cordis host 插件：/dsh-vscode 路由 + tapIndex + systemPrompt 公告
 │     └─ bridge.js           # 页面内脚本：点击捕获、会话跟踪（dshEmbed 门控）
-├─ tests/                    # node:test + jsdom 套件（74 个测试，零原生依赖）
+├─ tests/                    # node:test + jsdom 套件（89 个测试，零原生依赖）
 ├─ tools/
 │  └─ session-log-check.mjs  # 会话日志检查/修复工具（corrupt session log: seq gap 恢复）
 ├─ .github/workflows/ci.yml  # CI：push/PR 时构建 + 测试
@@ -123,6 +126,7 @@ npm run package        # 生成 dsh-for-vscode-<version>.vsix
 ### 已知限制
 
 - 仅桌面版 VSCode；不支持 Remote / 容器 / vscode.dev。
+- 主题映射的文字对比度守卫以**编辑器背景**为对比参照（浅色主题最浅、深色主题最深）。极少数表面与编辑器背景差异极大的非常规主题下可能不够精确，但回退方向永远保守（编辑器前景色在任意表面上均可读）。
 - webview 内的下载（会话 ZIP）与剪贴板可能受 Electron 环境限制。
 - 两个 VSCode 窗口共享工作区时，第二个窗口 reattach 到既有实例（不重复 spawn）。两个窗口**同一时刻**首次打开可能各起一个实例——先开一个面板即可避免。
 - 桥接的点击捕获针对交付文件行（`[data-produced-files-row]`）与路径形 title——DSH 未来改版可能需要小幅更新（路径形过滤保证失效时安全放行）。
@@ -156,6 +160,7 @@ Bring [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) 
   - when the agent deletes a file, its editor tab closes automatically (dirty tabs are kept);
   - when the agent switches workspaces, tabs switch to files already open in the new workspace.
 - **No profile mutation** — the plugin only embeds the web UI into VSCode; it does not modify your profile's `package.json` / `cordis.patch.yml`; uninstalling leaves no trace.
+- **Theme color sync** — the DSH UI in the panel maps the current VSCode theme colors onto DSH's `--dsw-*` tokens (can be turned off via `themeSync`), while the appearance in the external browser remains unchanged. **Note**: when using `connect` or `auto` to an instance launched by an external program, `bridge.js` cannot be injected, so theme color sync is unavailable; in that case it falls back to syncing light/dark through the DSH settings API.
 
 ### Requirements
 
@@ -167,9 +172,11 @@ Bring [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) 
 
 **Install from VSIX**
 
+After cloning the repository, run:
+
 ```sh
 npm install
-npm run package        # generates dsh-for-vscode-<version>.vsix
+npm run package        # generates embedded-deepseek-harness-for-vs-code-<version>.vsix
 ```
 
 Then in VSCode: Extensions view → `...` → **Install from VSIX…** → Reload.
@@ -188,7 +195,7 @@ An **instance** is a **DSH host process**. Instance sharing means VSCode and the
 |---|---|---|
 | `spawn` | Use the panel; open the status-bar port in a browser, or run `DSH: Open Shared Instance in Browser` | `spawn` tries to start a DSH host process, and VSCode connects to it. To prevent running the same conversation on two different instances at once (which corrupts session logs), a new instance is not started by default when one is already running on the default port. This behavior can be changed with the `allowDualInstance` setting. |
 | `connect` | Run `dsh web` (3080) in a terminal, then run `DSH: Open DSH Panel` from the command palette | In `connect` mode the extension tries to connect to the DSH host process at the default port `connectUrl` |
-| `auto` | Auto-connect | Connects if a usable instance exists on `connectUrl`, otherwise starts a managed one only when `autoModeSpawn` is on |
+| `auto` | Auto-connect | Connects if a usable instance exists on `connectUrl`, otherwise starts a managed one by default (can be disabled via `autoModeSpawn`) |
 
 ### Commands
 
@@ -204,16 +211,17 @@ An **instance** is a **DSH host process**. Instance sharing means VSCode and the
 
 | Setting | Default | Description |
 |---|---|---|
-| `hostMode` | `auto` | `auto`: connect if a usable instance exists on `connectUrl`, otherwise start a managed one only when `autoModeSpawn` is on. `spawn`: always host (refused by default when another live instance is detected — see `allowDualInstance`). `connect`: always connect. |
+| `hostMode` | `auto` | `auto`: connect if a usable instance exists on `connectUrl`, otherwise start a managed one by default (disable via `autoModeSpawn`). `spawn`: always host (refused by default when another live instance is detected — see `allowDualInstance`). `connect`: always connect. |
 | `connectUrl` | `http://127.0.0.1:3080` | Instance URL for connect / auto detection (loopback only). |
 | `sharePort` | `true` | When spawning, prefer port 3080 if free, so the browser can join the same instance. |
-| `autoModeSpawn` | `false` | In `auto` mode, whether to spawn (host) `dsh web` when none is running on 3080 (`connectUrl`). Off (default): `auto` only connects to an existing instance and errors instead of auto-starting one. |
+| `autoModeSpawn` | `true` | In `auto` mode, whether to spawn (host) `dsh web` when none is running on 3080 (`connectUrl`). On (default): `auto` starts a managed instance when none exists; Off: errors instead of auto-starting. |
 | `allowDualInstance` | `false` | Allow starting another instance when a live DSH instance is detected (`connectUrl` / shared port / a previously managed instance). Two instances sharing the same `~/.dsh` write session logs concurrently and corrupt them (`corrupt session log: seq gap`). Off (default) refuses with a clear error; on is at your own risk. |
 | `stopHostOnExit` | `true` | End the extension-managed host process when VSCode exits (spawn mode, or an instance started by the extension in `auto` mode). Off keeps it running so the next panel open reattaches to the same instance. |
 | `stopConnectedInstanceOnExit` | `false` | In `connect` mode, whether to also end the connected DSH instance when VSCode exits. Only works for instances with the `dsh-vscode-bridge` (the PID is obtained via the bridge health route, then its process tree is ended); bridgeless instances cannot be ended. Off (default): the connected instance is managed externally and is unaffected by VSCode exiting. |
 | `autoOpenFiles` | `preview` | Auto-open policy for agent writes: `preview` (reusable preview tab) / `editor` (persistent tab) / `off`. |
 | `autoOpenInclude` / `autoOpenExclude` | — | Glob allow/deny lists for auto-open (excludes `node_modules`, `.git`, binaries, … by default). |
 | `openColumn` | `beside` | Where the DSH panel opens (`beside` / `active`). |
+| `themeSync` | `true` | The DSH UI in the panel maps the current VSCode theme colors onto DSH's `--dsw-*` tokens (can be turned off via `themeSync`), while the appearance in the external browser remains unchanged. **Note**: when using `connect` or `auto` to an instance launched by an external program, `bridge.js` cannot be injected, so theme color sync is unavailable; it then falls back to syncing light/dark through the DSH settings API. |
 | `hostCwd` | (empty) | Working directory for the host (empty = current workspace folder, else home). |
 | `executablePath` | (empty) | Explicit dsh path (executable or `lib/bin.js`). Empty = auto-detect (npx cache / global npm / PATH). |
 | `profileName` | `web` | Profile to boot (must be a web-capable profile). |
@@ -243,7 +251,7 @@ An **instance** is a **DSH host process**. Instance sharing means VSCode and the
 │  └─ lib/
 │     ├─ index.js            # cordis host plugin: /dsh-vscode routes + tapIndex + systemPrompt notice
 │     └─ bridge.js           # in-page script: click capture, session tracking (dshEmbed-gated)
-├─ tests/                    # node:test + jsdom suite (74 tests, zero native deps)
+├─ tests/                    # node:test + jsdom suite (89 tests, zero native deps)
 ├─ tools/
 │  └─ session-log-check.mjs  # session-log check/repair tool (corrupt session log: seq gap recovery)
 ├─ .github/workflows/ci.yml  # CI: build + test on push/PR
@@ -254,6 +262,7 @@ An **instance** is a **DSH host process**. Instance sharing means VSCode and the
 ### Known Limitations
 
 - Desktop VSCode only; Remote / containers / vscode.dev are **not supported**.
+- The theme mapping's text-contrast guard uses the **editor background** as its contrast reference (the lightest surface in light themes, the darkest in dark themes). For very unusual themes whose surfaces differ greatly from the editor background it may be imprecise, but the fallback direction is always conservative (the editor foreground stays readable on any surface).
 - Downloads (session ZIP) and clipboard inside the webview may be restricted by the Electron environment.
 - When two VSCode windows share a workspace, the second reattaches to the existing instance (no duplicate spawn). If both windows open a panel for the first time at the **exact same moment**, each may start its own instance — open one panel first to avoid it.
 - The bridge's click capture targets the delivered-files row (`[data-produced-files-row]`) and path-shaped titles — future DSH UI redesigns may need a small update here (the path-shaped filter keeps it fail-safe).

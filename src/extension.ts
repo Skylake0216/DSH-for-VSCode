@@ -13,7 +13,7 @@ import { HostManager, type HostState } from './host/hostManager'
 import { DshPanel } from './webview/panel'
 import { LinkageWatcher, defaultOpenFile } from './linkage/watcher'
 import { openFromMessage } from './linkage/opener'
-import { pickLikelyActive, type SessionSummary } from './host/dshApi'
+import { pickLikelyActive, updateThemePreference, type SessionSummary } from './host/dshApi'
 import type { WebviewToHost } from './messages'
 import { cpSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -48,7 +48,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     onStateChange: (state: HostState) => {
       panel.pushState()
       updateStatusBar(state)
-      if (state.status === 'ready') void onHostReady()
+      if (state.status === 'ready') {
+        void onHostReady()
+        void syncThemeViaSettings()
+      }
     },
     log,
   })
@@ -81,6 +84,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } else if (message.type === 'ready') {
           // relay 已就绪：补发当前状态（面板重开/序列化恢复时 hello 可能早于 relay 加载而丢失）
           panel.pushState()
+          panel.pushTheme()
           if (hostManager.state.status !== 'ready') {
             // 序列化恢复的面板 host 可能从未启动（无命令触发 start()）：补一次。
             // start() 幂等：in-flight 的启动复用同一 promise，不会双 spawn。
@@ -91,6 +95,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               if (hostManager.state.status === 'ready') panel.pushState()
             }, 1000)
           }
+        } else if (message.type === 'iframeLoaded') {
+          // iframe 已加载：再补一次主题，确保 DSH 页面拿到最新 VSCode 颜色
+          panel.pushTheme()
         } else if (message.type === 'openFile') {
           void openFromMessage(message.path, currentRoots(), {
             preview: false,
@@ -112,6 +119,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     () => hostManager.state
   )
   panel.registerSerializer()
+
+  /** connect 到无 bridge 实例时的主题兜底：用 DSH 官方 settings API 同步明/暗，无需改实例。 */
+  async function syncThemeViaSettings(): Promise<void> {
+    if (!vscode.workspace.getConfiguration('dshVscode').get<boolean>('themeSync', true)) return
+    const runtime = hostManager.current
+    if (runtime === undefined || runtime.hasBridge || runtime.mode !== 'connect') return
+    const kind = vscode.window.activeColorTheme.kind
+    const preference = kind === 2 || kind === 3 ? 'dark' : 'light'
+    try {
+      await updateThemePreference(runtime.url, preference)
+      log(`settings ui-theme.preference → ${preference}（connect 无 bridge 兜底）`)
+    } catch (error) {
+      log(`settings ui-theme.preference 更新失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  // 主题切换时，若 connect 实例无 bridge，走 settings API 兜底同步明暗
+  context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => void syncThemeViaSettings()))
 
   // —— 状态栏 ——
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100)

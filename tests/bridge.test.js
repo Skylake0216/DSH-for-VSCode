@@ -106,6 +106,71 @@ describe('bridge.js', () => {
     assert.deepStrictEqual(plain(posted), [])
   })
 
+  it('收到 VSCode 主题消息 → 设置深色并注入 DSH token 覆盖样式', () => {
+    const { window } = loadBridge(EMBED_URL)
+    const event = new window.MessageEvent('message', {
+      data: {
+        source: 'dsh-vscode',
+        type: 'theme',
+        scheme: 'dark',
+        tokens: {
+          '--dsw-alias-bg-base': '#1e1e1e',
+          '--dsw-alias-label-primary': '#d4d4d4',
+        },
+      },
+    })
+    Object.defineProperty(event, 'source', { value: window.parent })
+    window.dispatchEvent(event)
+    assert.strictEqual(window.document.documentElement.style.colorScheme, 'dark')
+    assert.ok(window.document.body.hasAttribute('data-ds-dark-theme'))
+    const style = window.document.getElementById('dsh-vscode-theme-overrides')
+    assert.ok(style, '应存在主题覆盖样式节点')
+    assert.match(style.textContent, /--dsw-alias-bg-base: #1e1e1e !important/)
+    assert.match(style.textContent, /--dsw-alias-label-primary: #d4d4d4 !important/)
+  })
+
+  it('收到浅色主题消息 → 移除深色属性并更新覆盖样式', () => {
+    const { window } = loadBridge(EMBED_URL)
+    const postTheme = (scheme) => {
+      const event = new window.MessageEvent('message', {
+        data: { source: 'dsh-vscode', type: 'theme', scheme, tokens: { '--dsw-alias-bg-base': '#ffffff' } },
+      })
+      Object.defineProperty(event, 'source', { value: window.parent })
+      window.dispatchEvent(event)
+    }
+    postTheme('dark')
+    assert.ok(window.document.body.hasAttribute('data-ds-dark-theme'))
+    postTheme('light')
+    assert.strictEqual(window.document.documentElement.style.colorScheme, 'light')
+    assert.ok(!window.document.body.hasAttribute('data-ds-dark-theme'))
+    const style = window.document.getElementById('dsh-vscode-theme-overrides')
+    assert.match(style.textContent, /--dsw-alias-bg-base: #ffffff !important/)
+  })
+
+  it('收到 reset 消息 → 移除覆盖样式且不强制明暗', () => {
+    const { window } = loadBridge(EMBED_URL)
+    const send = (data) => {
+      const event = new window.MessageEvent('message', { data })
+      Object.defineProperty(event, 'source', { value: window.parent })
+      window.dispatchEvent(event)
+    }
+    send({ source: 'dsh-vscode', type: 'theme', scheme: 'dark', tokens: { '--dsw-alias-bg-base': '#000' } })
+    assert.ok(window.document.getElementById('dsh-vscode-theme-overrides'))
+    send({ source: 'dsh-vscode', type: 'theme', reset: true })
+    assert.strictEqual(window.document.getElementById('dsh-vscode-theme-overrides'), null)
+    assert.strictEqual(window.document.documentElement.style.colorScheme, '')
+  })
+
+  it('主题消息来源不是父窗口 → 忽略', () => {
+    const { window } = loadBridge(EMBED_URL)
+    const event = new window.MessageEvent('message', {
+      data: { source: 'dsh-vscode', type: 'theme', scheme: 'dark', tokens: { '--dsw-alias-bg-base': '#000' } },
+    })
+    Object.defineProperty(event, 'source', { value: {} })
+    window.dispatchEvent(event)
+    assert.strictEqual(window.document.getElementById('dsh-vscode-theme-overrides'), null)
+  })
+
   it('非交互元素路径文本触发（相对路径含目录层级）', () => {
     const { window, posted } = loadBridge(EMBED_URL)
     window.document.body.innerHTML = `<code>deploy/base/deployment.yaml</code>`

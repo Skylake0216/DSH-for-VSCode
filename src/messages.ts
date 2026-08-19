@@ -45,6 +45,14 @@ export type WebviewToHost =
 export type HostToWebview =
   | { type: 'hello'; url: string }
   | { type: 'hostStatus'; status: 'connecting' | 'connected' | 'error'; message?: string }
+  | {
+      /** 请求 relay 读取当前 VSCode 主题并同步到 iframe。 */
+      type: 'theme'
+      /** vscode.ColorThemeKind：Light=1 / Dark=2 / HighContrast=3 / HighContrastLight=4。 */
+      kind: number
+      /** 是否启用主题同步；false 时 relay 通知 iframe 清除覆盖样式，恢复 DSH 自身主题。 */
+      enabled: boolean
+    }
 
 /** 窗口级消息常量。 */
 export const IFRAME_SOURCE = 'dsh-vscode' as const

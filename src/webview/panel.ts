@@ -27,7 +27,15 @@ export class DshPanel {
     private readonly context: vscode.ExtensionContext,
     private readonly callbacks: PanelCallbacks,
     private readonly getHostState: () => HostState
-  ) {}
+  ) {
+    // VSCode 主题切换或 themeSync 设置变化时，把最新状态同步到 DSH iframe。
+    this.context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => this.pushTheme()))
+    this.context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('dshVscode.themeSync')) this.pushTheme()
+      })
+    )
+  }
 
   /** 创建或聚焦面板。 */
   createOrShow(): vscode.WebviewPanel {
@@ -62,6 +70,7 @@ export class DshPanel {
     })
     panel.webview.html = this.buildHtml(panel.webview)
     this.pushState()
+    this.pushTheme()
     return panel
   }
 
@@ -78,6 +87,17 @@ export class DshPanel {
       message = { type: 'hostStatus', status: 'connecting' }
     }
     void this.panel.webview.postMessage(message)
+  }
+
+  /** 请求 webview 把当前 VSCode 主题颜色映射到 DSH iframe（受 themeSync 设置控制）。 */
+  pushTheme(): void {
+    if (this.panel === undefined) return
+    const syncTheme = vscode.workspace.getConfiguration('dshVscode').get<boolean>('themeSync', true)
+    void this.panel.webview.postMessage({
+      type: 'theme',
+      kind: vscode.window.activeColorTheme.kind,
+      enabled: syncTheme,
+    } satisfies HostToWebview)
   }
 
   private buildHtml(webview: vscode.Webview): string {
@@ -135,6 +155,7 @@ export class DshPanel {
         })
         panel.webview.html = this.buildHtml(panel.webview)
         this.pushState()
+        this.pushTheme()
       },
     })
   }

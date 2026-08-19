@@ -61,6 +61,15 @@ export function listSessions(baseUrl: string): Promise<{ items: SessionSummary[]
   return rpc<{ items: SessionSummary[] }>(baseUrl, 'session.list', {})
 }
 
+/**
+ * 更新 DSH 的内置外观偏好（ui-theme.preference）。
+ * connect 模式连到无 bridge 的实例时，可用这个官方 settings API 至少同步明/暗，
+ * 不需要向实例注入任何插件。
+ */
+export function updateThemePreference(baseUrl: string, preference: 'light' | 'dark'): Promise<unknown> {
+  return rpc(baseUrl, 'settings.update', { ns: 'ui-theme', patch: { preference } })
+}
+
 /** 按 activity 顺序取"最可能的活动会话"（running 优先，其次 updatedAt 最新）。 */
 export function pickLikelyActive(items: SessionSummary[]): SessionSummary | undefined {
   const candidates = items.filter((item) => !item.blank && item.cwd !== undefined && item.cwd !== '')

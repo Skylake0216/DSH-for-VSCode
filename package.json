@@ -2,7 +2,7 @@
   "name": "embedded-deepseek-harness-for-vs-code",
   "displayName": "Embedded Deepseek Harness for VS Code",
   "description": "DeepSeek Harness 嵌入 VSCode：完整 Web GUI，全部 DSH 插件兼容，与浏览器 WebUI 共享同一实例。",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "publisher": "Skylake0216",
   "license": "MIT",
   "engines": {
@@ -75,7 +75,7 @@
             "connect"
           ],
           "default": "auto",
-          "markdownDescription": "`auto`：若 `connectUrl` 已有可用的 DSH 实例则连接之（共享实例）；否则仅当 `dshVscode.autoModeSpawn` 开启时由插件托管启动（默认关闭，无实例时提示错误）。`spawn`：总是由插件托管（若检测到已有 DSH 实例在运行则默认拒绝，见 `dshVscode.allowDualInstance`）。`connect`：总是连接已有实例。"
+          "markdownDescription": "`auto`：若 `connectUrl` 已有可用的 DSH 实例则连接之（共享实例）；否则默认由插件托管启动（可通过 `dshVscode.autoModeSpawn` 关闭，关闭后无实例时提示错误）。`spawn`：总是由插件托管（若检测到已有 DSH 实例在运行则默认拒绝，见 `dshVscode.allowDualInstance`）。`connect`：总是连接已有实例。"
         },
         "dshVscode.allowDualInstance": {
           "type": "boolean",
@@ -94,8 +94,8 @@
         },
         "dshVscode.autoModeSpawn": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "auto 模式下，若 3080 端口（`connectUrl`）没有 dsh web 在运行，是否唤起（由插件托管启动）dsh web。默认关闭：auto 仅连接已有实例，无实例时打开面板会提示错误而不是自动启动。"
+          "default": true,
+          "markdownDescription": "auto 模式下，若 3080 端口（`connectUrl`）没有 dsh web 在运行，是否唤起（由插件托管启动）dsh web。默认开启：auto 在无已有实例时自动托管启动；关闭后无实例时提示错误。"
         },
         "dshVscode.connectUrl": {
           "type": "string",
@@ -159,6 +159,11 @@
           ],
           "default": "beside",
           "description": "DSH 面板在编辑器区打开的位置。"
+        },
+        "dshVscode.themeSync": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "是否把当前 VSCode 主题的颜色映射到嵌入的 DSH 界面（`--vscode-*` → `--dsw-*`）。仅在 `dshEmbed=1` 的 iframe 面板生效，不影响浏览器中打开的共享实例。关闭后 DSH 继续使用其自身的 `ui-theme` 设置。"
         },
         "dshVscode.hostCwd": {
           "type": "string",

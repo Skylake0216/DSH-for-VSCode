@@ -1,6 +1,7 @@
 # 打包时排除的文件
 node_modules/**
 .npm-cache/**
+.dsh-vision-toolkit/**
 src/**
 tests/**
 bridge/src/**
