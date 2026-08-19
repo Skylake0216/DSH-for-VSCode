@@ -9,5 +9,4 @@ overlay.e2e.yml
 .node-watch-*
 # 本机研究笔记（含本机绝对路径）：默认不提交；如需保留可自行删除本行
 DSH-web-profile-embedding-research.md
-.gitattributes
 .vscodeignore
